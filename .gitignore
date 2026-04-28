@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.pyo
+config.ini
+zvt2sumup.log
+_backup/
+*.egg-info/
+dist/
+build/
+.env
