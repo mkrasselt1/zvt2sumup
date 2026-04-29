@@ -14,7 +14,7 @@ import threading
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from gateway.config import GatewayConfig
-from gateway.sumup_api import SumUpClient
+from gateway.sumup_api import SumUpClient, SumUpError
 
 
 class SetupAssistent(tk.Tk):
@@ -23,7 +23,7 @@ class SetupAssistent(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("ZVT-zu-SumUp Gateway - Einrichtung")
-        self.geometry("580x660")
+        self.geometry("580x820")
         self.resizable(False, False)
         self.config_data = GatewayConfig()
         self._terminals_cache = []  # Gefundene Terminals
@@ -59,17 +59,53 @@ class SetupAssistent(tk.Tk):
         ttk.Label(sumup_frame, text="(SumUp Dashboard > Entwickler > API-Schluessel)",
                   font=("Segoe UI", 7)).grid(row=1, column=1, columnspan=2, sticky=tk.W, padx=(10, 0))
 
+        # Affiliate-Key
+        ttk.Label(sumup_frame, text="Affiliate-Key:").grid(row=2, column=0, sticky=tk.W, pady=3)
+        self.affiliate_key_var = tk.StringVar()
+        ttk.Entry(sumup_frame, textvariable=self.affiliate_key_var, width=50, show="*").grid(
+            row=2, column=1, columnspan=2, padx=(10, 0), pady=3, sticky=tk.W)
+
+        # Affiliate App-ID
+        ttk.Label(sumup_frame, text="App-ID:").grid(row=3, column=0, sticky=tk.W, pady=3)
+        self.affiliate_app_id_var = tk.StringVar()
+        ttk.Entry(sumup_frame, textvariable=self.affiliate_app_id_var, width=50).grid(
+            row=3, column=1, columnspan=2, padx=(10, 0), pady=3, sticky=tk.W)
+
+        ttk.Label(sumup_frame, text="(SumUp Dashboard > Entwickler > Toolkit > Affiliate Keys)",
+                  font=("Segoe UI", 7)).grid(row=4, column=1, columnspan=2, sticky=tk.W, padx=(10, 0))
+
         # Konto-Info (wird automatisch geladen)
-        ttk.Label(sumup_frame, text="Konto:").grid(row=2, column=0, sticky=tk.W, pady=3)
+        ttk.Label(sumup_frame, text="Konto:").grid(row=5, column=0, sticky=tk.W, pady=3)
         self.account_label = ttk.Label(sumup_frame, text="(wird automatisch erkannt)",
                                        font=("Segoe UI", 9), foreground="gray")
-        self.account_label.grid(row=2, column=1, columnspan=2, sticky=tk.W, padx=(10, 0), pady=3)
+        self.account_label.grid(row=5, column=1, columnspan=2, sticky=tk.W, padx=(10, 0), pady=3)
+
+        # Pairing-Bereich (vor Terminal-Auswahl, da Kopplung zuerst erfolgen muss)
+        pair_frame = ttk.Frame(sumup_frame)
+        pair_frame.grid(row=6, column=0, columnspan=3, sticky=tk.W, pady=(8, 0))
+
+        ttk.Label(pair_frame, text="Terminal koppeln: Am Solo abmelden, dann Verbindungen > API > Verbinden.\n"
+                  "Den angezeigten Code hier eingeben:",
+                  font=("Segoe UI", 7)).pack(anchor=tk.W)
+
+        pair_input_frame = ttk.Frame(pair_frame)
+        pair_input_frame.pack(anchor=tk.W, pady=(3, 0))
+
+        self.pairing_code_var = tk.StringVar()
+        ttk.Entry(pair_input_frame, textvariable=self.pairing_code_var, width=15).pack(side=tk.LEFT)
+
+        self.pair_btn = ttk.Button(pair_input_frame, text="Terminal koppeln",
+                                   command=self._pair_terminal)
+        self.pair_btn.pack(side=tk.LEFT, padx=(8, 0))
+
+        self.pair_status = ttk.Label(pair_frame, text="", font=("Segoe UI", 7))
+        self.pair_status.pack(anchor=tk.W, pady=(2, 0))
 
         # Terminal-ID als Dropdown
-        ttk.Label(sumup_frame, text="Terminal:").grid(row=3, column=0, sticky=tk.W, pady=3)
+        ttk.Label(sumup_frame, text="Terminal:").grid(row=7, column=0, sticky=tk.W, pady=3)
 
         terminal_row = ttk.Frame(sumup_frame)
-        terminal_row.grid(row=3, column=1, columnspan=2, padx=(10, 0), pady=3, sticky=tk.W)
+        terminal_row.grid(row=7, column=1, columnspan=2, padx=(10, 0), pady=3, sticky=tk.W)
 
         self.terminal_var = tk.StringVar()
         self.terminal_combo = ttk.Combobox(terminal_row, textvariable=self.terminal_var,
@@ -81,15 +117,15 @@ class SetupAssistent(tk.Tk):
         self.terminal_refresh_btn.pack(side=tk.LEFT, padx=(8, 0))
 
         self.terminal_status = ttk.Label(sumup_frame, text="", font=("Segoe UI", 7))
-        self.terminal_status.grid(row=4, column=1, columnspan=2, sticky=tk.W, padx=(10, 0))
+        self.terminal_status.grid(row=8, column=1, columnspan=2, sticky=tk.W, padx=(10, 0))
 
         # Test-Button
         self.test_btn = ttk.Button(sumup_frame, text="Verbindung testen",
                                    command=self._test_connection)
-        self.test_btn.grid(row=5, column=1, columnspan=2, sticky=tk.E, pady=(10, 0))
+        self.test_btn.grid(row=9, column=1, columnspan=2, sticky=tk.E, pady=(10, 0))
 
         self.test_label = ttk.Label(sumup_frame, text="", font=("Segoe UI", 9))
-        self.test_label.grid(row=5, column=0, sticky=tk.W, pady=(10, 0))
+        self.test_label.grid(row=9, column=0, sticky=tk.W, pady=(10, 0))
 
         # ── Gateway-Einstellungen ─────────────────────────────
         gw_frame = ttk.LabelFrame(main, text=" Gateway-Einstellungen ", padding=10)
@@ -143,6 +179,8 @@ class SetupAssistent(tk.Tk):
     def _load_values(self):
         """Laedt aktuelle Werte in die Felder."""
         self.api_key_var.set(self.config_data.api_key)
+        self.affiliate_key_var.set(self.config_data.affiliate_key)
+        self.affiliate_app_id_var.set(self.config_data.affiliate_app_id)
         self.modus_var.set(self.config_data.modus)
         self.tcp_port_var.set(str(self.config_data.tcp_port))
         self.com_port_var.set(self.config_data.com_port)
@@ -293,6 +331,55 @@ class SetupAssistent(tk.Tk):
 
         return selected
 
+    def _pair_terminal(self):
+        """Koppelt ein Terminal ueber den Pairing-Code."""
+        api_key = self.api_key_var.get().strip()
+        pairing_code = self.pairing_code_var.get().strip()
+
+        if not api_key:
+            messagebox.showwarning("Fehlende Daten", "Bitte zuerst den API-Schluessel eingeben.")
+            return
+        if not pairing_code:
+            messagebox.showwarning("Fehlende Daten", "Bitte den Pairing-Code vom Terminal eingeben.")
+            return
+
+        self.pair_btn.configure(state="disabled")
+        self.pair_status.configure(text="Kopple Terminal...", foreground="gray")
+        self.update()
+
+        def do_pair():
+            try:
+                client = SumUpClient(api_key)
+                conn = client.test_connection()
+                if not conn["ok"]:
+                    msg = conn.get("error", "API-Verbindung fehlgeschlagen")
+                    self.after(0, lambda m=msg: self._pair_done(False, m))
+                    return
+                reader = client.pair_reader(pairing_code)
+                self.after(0, lambda r=reader: self._pair_done(True, r))
+            except (SumUpError, Exception) as e:
+                msg = str(e)
+                self.after(0, lambda m=msg: self._pair_done(False, m))
+
+        threading.Thread(target=do_pair, daemon=True).start()
+
+    def _pair_done(self, success: bool, result):
+        """Callback nach Pairing-Versuch."""
+        self.pair_btn.configure(state="normal")
+        if success:
+            reader_id = result.get("id", "")
+            reader_name = result.get("name", "")
+            status = result.get("status", "")
+            self.pair_status.configure(
+                text=f"Gekoppelt! {reader_name} (Status: {status})",
+                foreground="green",
+            )
+            self.pairing_code_var.set("")
+            # Terminals neu laden, neuen Reader vorauswaehlen
+            self._load_terminals(preselect=reader_id)
+        else:
+            self.pair_status.configure(text=f"Fehler: {result}", foreground="red")
+
     def _test_connection(self):
         """Testet die SumUp-Verbindung im Hintergrund (laedt alles neu)."""
         api_key = self.api_key_var.get().strip()
@@ -319,6 +406,8 @@ class SetupAssistent(tk.Tk):
 
         # Werte uebernehmen
         self.config_data.set("sumup", "api_key", self.api_key_var.get().strip())
+        self.config_data.set("sumup", "affiliate_key", self.affiliate_key_var.get().strip())
+        self.config_data.set("sumup", "affiliate_app_id", self.affiliate_app_id_var.get().strip())
         self.config_data.set("sumup", "merchant_code", merchant_code)
         self.config_data.set("sumup", "terminal_id", terminal_id)
         self.config_data.set("gateway", "modus", self.modus_var.get())

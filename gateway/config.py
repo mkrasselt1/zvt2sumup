@@ -30,6 +30,8 @@ DEFAULTS = {
         "api_key": "",
         "merchant_code": "",
         "terminal_id": "",
+        "affiliate_key": "",
+        "affiliate_app_id": "",
         "zahlung_timeout": "120",  # Sekunden
     },
 }
@@ -117,6 +119,14 @@ class GatewayConfig:
     @property
     def terminal_id(self) -> str:
         return self.config.get("sumup", "terminal_id")
+
+    @property
+    def affiliate_key(self) -> str:
+        return self.config.get("sumup", "affiliate_key")
+
+    @property
+    def affiliate_app_id(self) -> str:
+        return self.config.get("sumup", "affiliate_app_id")
 
     @property
     def zahlung_timeout(self) -> int:

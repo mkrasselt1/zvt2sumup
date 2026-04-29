@@ -63,15 +63,24 @@ Doppelklick auf **`setup.bat`** - es oeffnet sich ein Fenster:
 1. **API-Schluessel** eingeben
    - Wo finde ich den? → SumUp Dashboard → Entwickler → API-Schluessel
    - https://me.sumup.com/de-de/developer
-2. **Haendler-Code** eingeben
-   - Wo finde ich den? → SumUp Dashboard → Konto → Geschaeftsprofil
-3. **Terminal-ID** eingeben (optional)
-   - Nur noetig wenn Sie mehrere Terminals haben
-4. **Verbindungsmodus** waehlen:
+2. **Affiliate-Key und App-ID** eingeben
+   - Wo finde ich das? → SumUp Dashboard → Entwickler → Toolkit → Affiliate Keys
+   - App-ID frei waehlbar (z.B. `zvt2sumup`)
+   - Wird fuer die Cloud-API-Kommunikation mit dem Terminal benoetigt
+3. **Terminal koppeln** (SumUp Solo ueber Cloud-API verbinden)
+   - Am SumUp Solo: Abmelden (Einstellungen → Info → Abmelden)
+   - Dann: Verbindungen → API → Verbinden
+   - Den angezeigten 8-9-stelligen Code im Setup-Fenster eingeben
+   - Auf "Terminal koppeln" klicken
+   - **Hinweis:** Der Pairing-Code ist 5 Minuten gueltig
+4. **Terminal auswaehlen** aus dem Dropdown
+   - Nach dem Koppeln: "Terminals laden" klicken
+   - Bei nur einem Terminal wird dieses automatisch ausgewaehlt
+5. **Verbindungsmodus** waehlen:
    - **TCP/IP** (empfohlen): Port 20007 (ZVT-Standard)
    - **COM-Port**: Fuer aeltere Kassensysteme mit serieller Anbindung
-5. Auf "Verbindung testen" klicken
-6. "Speichern und Schliessen"
+6. Auf "Verbindung testen" klicken
+7. "Speichern und Schliessen"
 
 ### Schritt 3: Gateway starten
 
@@ -100,12 +109,22 @@ In Ihrem Kassensystem die ZVT-Einstellungen wie folgt setzen:
 
 Fuer den COM-Port-Modus benoetigen Sie einen **virtuellen COM-Port**.
 
-**Einrichtung mit com0com (kostenlos):**
+**Automatische Einrichtung:**
+
+Doppelklick auf **`setup_comport.bat`** (als Administrator) - das Skript:
+- Prueft ob com0com installiert ist
+- Laedt es bei Bedarf automatisch herunter (signierte Version fuer Windows 10/11)
+- Startet die Installation
+- Erstellt ein virtuelles Port-Paar (z.B. COM3 ↔ COM4)
+- Aktualisiert die config.ini automatisch
+
+**Manuelle Einrichtung mit com0com:**
 
 1. com0com herunterladen: https://sourceforge.net/projects/com0com/
-2. Installieren und ein Portpaar erstellen (z.B. COM3 ↔ COM4)
-3. Im Gateway: COM4 einstellen (in setup.bat)
-4. Im Kassensystem: COM3 einstellen
+2. Fuer Windows 10/11 die signierte Version: https://github.com/pauloricardoferreira/com0com-signed-drivers
+3. Installieren und ein Portpaar erstellen (z.B. COM3 ↔ COM4)
+4. Im Gateway: COM4 einstellen (in setup.bat)
+5. Im Kassensystem: COM3 einstellen
 
 | Einstellung    | Kassensystem  | Gateway       |
 |--------------- |---------------|---------------|
@@ -159,6 +178,44 @@ Bitte lesen Sie diese Liste aufmerksam:
 
 ---
 
+## Test-Tool
+
+Mit **`test.bat`** steht ein interaktives Test-Tool zur Verfuegung, das drei Modi bietet:
+
+### 1. Kassen-Simulator
+
+Simuliert ein Kassensystem und sendet ZVT-Befehle an das laufende Gateway.
+Damit koennen Sie das Gateway testen, ohne ein echtes Kassensystem zu benoetigen.
+
+- Verbindet sich per TCP mit dem Gateway
+- Sendet Registrierung, Zahlung (beliebiger Betrag), Storno, Kassenschnitt
+- Zeigt alle Antworten des Gateways mit Hex-Dump und dekodierten Feldern an
+
+**Voraussetzung:** Das Gateway muss mit `start.bat` gestartet sein.
+
+### 2. Gateway-Simulator
+
+Simuliert das Gateway und empfaengt ZVT-Befehle von einem echten Kassensystem.
+Zeigt an was die Kasse sendet und erlaubt manuelle Antworten.
+
+- Zeigt empfangene Befehle mit Betraegen an
+- Bei Zahlungen: manuell "bezahlt", "abgelehnt" oder "timeout" antworten
+- Bei Storno: manuell bestaetigen oder ablehnen
+
+**Voraussetzung:** Das Gateway darf NICHT gleichzeitig laufen (gleicher Port).
+
+### 3. Terminal-Tester
+
+Sendet Zahlungen direkt an das SumUp Solo ueber die Cloud-API (ohne Gateway/ZVT).
+Damit koennen Sie die SumUp-Anbindung unabhaengig vom ZVT-Teil testen.
+
+- Verbindungstest (API-Key und Konto pruefen)
+- Terminals auflisten
+- Zahlung an Terminal senden (mit Live-Status)
+- Transaktion stornieren
+
+---
+
 ## Konfigurationsdatei (config.ini)
 
 Die Datei `config.ini` kann auch direkt mit einem Texteditor bearbeitet werden:
@@ -187,11 +244,17 @@ log_datei = zvt2sumup.log
 ; SumUp API-Schluessel (Bearer Token)
 api_key = HIER_IHR_API_KEY
 
-; SumUp Haendler-Code
-merchant_code = HIER_IHR_MERCHANT_CODE
+; SumUp Haendler-Code (wird automatisch ermittelt)
+merchant_code =
 
-; Terminal-ID (leer = automatisch)
+; Terminal-/Reader-ID (leer = automatisch bei nur einem Terminal)
 terminal_id =
+
+; Affiliate-Key (SumUp Dashboard > Entwickler > Toolkit)
+affiliate_key =
+
+; App-ID zum Affiliate-Key
+affiliate_app_id =
 
 ; Maximale Wartezeit auf Zahlung in Sekunden
 zahlung_timeout = 120
@@ -208,6 +271,7 @@ zahlung_timeout = 120
 5. Berechtigungen setzen:
    - `payments` (Zahlungen)
    - `transactions.history` (Transaktionsverlauf)
+   - `readers.read` und `readers.write` (Terminal-Kopplung)
    - `user.app-settings` (Kontoeinstellungen)
 6. API-Schluessel kopieren und in setup.bat eingeben
 
@@ -402,8 +466,10 @@ Die `config.ini` und Logdatei bleiben bei jedem Update erhalten.
 zvt2sumup/
 ├── install.bat            ← Einmal ausfuehren: Installiert alles
 ├── setup.bat              ← Grafischer Einrichtungsassistent
+├── setup_comport.bat      ← Virtuellen COM-Port einrichten (Admin!)
 ├── start.bat              ← Gateway starten (interaktiv)
 ├── stop.bat               ← Gateway beenden (interaktiv)
+├── test.bat               ← Test-Tool (Kassen-/Gateway-Simulator)
 ├── update.bat             ← Auf neue Version pruefen und aktualisieren
 ├── dienst_install.bat     ← Als Windows-Dienst installieren (Admin!)
 ├── dienst_entfernen.bat   ← Windows-Dienst entfernen (Admin!)
@@ -413,6 +479,8 @@ zvt2sumup/
 ├── zvt2sumup.log          ← Logdatei (nach erstem Start)
 ├── requirements.txt       ← Python-Paketliste
 ├── ANLEITUNG.md           ← Diese Datei
+├── test_tool.py           ← Test-Tool (Kassen-/Gateway-/Terminal-Tester)
+├── setup_comport.py       ← COM-Port-Setup (com0com)
 │
 └── gateway/               ← Programmcode
     ├── __init__.py

@@ -76,6 +76,8 @@ class GatewayApp:
             api_key=self.config.api_key,
             merchant_code=self.config.merchant_code,
             terminal_id=terminal_id,
+            affiliate_key=self.config.affiliate_key,
+            affiliate_app_id=self.config.affiliate_app_id,
         )
 
         # Verbindung pruefen und Merchant Code automatisch ermitteln
